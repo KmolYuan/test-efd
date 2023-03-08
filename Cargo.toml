@@ -6,6 +6,5 @@ edition = "2021"
 [dependencies]
 efd = { path = "../efd-rs" }
 four-bar = { path = "../four-bar-rs/four-bar", features = ["plot", "csv"] }
-ndrustfft = "0.3"
-ndarray = "0.15"
+rustfft = "6"
 ron = "0.8"

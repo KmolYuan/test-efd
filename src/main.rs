@@ -1,27 +1,24 @@
 use four_bar::*;
 
 fn fft_recon(path: &[[f64; 2]], harmonic: usize) -> Vec<[f64; 2]> {
-    use ndarray::{arr1, s, Array};
-    use ndrustfft::{Complex, Zero as _};
+    use rustfft::{num_complex::Complex, num_traits::Zero as _};
 
-    let data = path
+    let mut data = path
         .iter()
         .map(|&[re, im]| Complex { re, im })
         .collect::<Vec<_>>();
     let len = data.len();
-    let mut plan = ndrustfft::FftHandler::new(len);
-    let data = arr1(&data);
-    let mut fd = Array::zeros(data.raw_dim());
-    ndrustfft::ndfft_par(&data, &mut fd, &mut plan, 0);
+    let mut plan = rustfft::FftPlanner::new();
+    plan.plan_fft_forward(len).process(&mut data);
     let n1 = harmonic / 2;
     let n2 = n1 + harmonic % 2;
-    fd.slice_mut(s![n1..len - n2])
-        .iter_mut()
+    data.iter_mut()
+        .take(len - n1)
+        .skip(n2)
         .for_each(|c| c.set_zero());
-    let mut data = Array::zeros(fd.raw_dim());
-    ndrustfft::ndifft_par(&fd, &mut data, &mut plan, 0);
+    plan.plan_fft_inverse(len).process(&mut data);
     data.into_iter()
-        .map(|Complex { re, im }| [re, im])
+        .map(|Complex { re, im }| [re / len as f64, im / len as f64])
         .collect()
 }
 
@@ -39,10 +36,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         b,
         [
             ("Original", path.as_slice()),
-            // (
-            //     &format!("EFD Reconstructed ({harmonic} harmonics)"),
-            //     path_recon.as_slice(),
-            // ),
+            (
+                &format!("EFD Reconstructed ({harmonic} harmonics)"),
+                path_recon.as_slice(),
+            ),
             (
                 &format!("FD Reconstructed ({harmonic} harmonics)"),
                 fft_recon.as_slice(),
@@ -50,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ],
         plot2d::Opt::from(None)
             .grid(false)
-            // .axis(false)
+            .axis(false)
             .dot(true)
             .stroke(4),
     )?;
