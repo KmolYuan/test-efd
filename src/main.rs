@@ -1,4 +1,4 @@
-use four_bar::*;
+use four_bar::{efd::Curve as _, plot2d::IntoDrawingArea, *};
 
 fn fft_recon(path: &[[f64; 2]], harmonic: usize) -> Vec<[f64; 2]> {
     use rustfft::{num_complex::Complex, num_traits::Zero as _};
@@ -31,33 +31,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "../four-bar-rs/syn-examples/sharp.open.ron",
         "../four-bar-rs/syn-examples/heart.closed.ron",
     ];
-    let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[1])?)?;
+    let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
     let path = fb.curve(360);
-    let path_closed = curve::closed_lin(&path);
+    let path_closed = path.clone().closed_lin();
     let efd = efd::Efd2::from_curve_harmonic(&path_closed, None).unwrap();
     let harmonic = efd.harmonic();
-    let fft_recon = fft_recon(&path_closed[..path_closed.len() - 1], harmonic);
+    let fft_recon = fft_recon(&path_closed[..path_closed.len() - 1], harmonic * 2);
     let path_recon = efd.generate(180);
-    let b = plot2d::SVGBackend::new("test.svg", (800, 800));
+    let b = plot2d::SVGBackend::new("test.svg", (800 * 3, 800));
+    let mut roots = b.into_drawing_area().split_evenly((1, 3));
+    let [root1, root2, root3] = [roots.remove(0), roots.remove(0), roots.remove(0)];
     plot2d::plot(
-        b,
+        root1,
+        [("", path.as_slice())],
+        plot2d::Opt::from(&fb)
+            .grid(false)
+            .axis(false)
+            .scale_bar(true),
+    )?;
+    let opt = plot2d::Opt::new()
+        .grid(false)
+        .font(50.)
+        .dot(true)
+        .legend(plot2d::LegendPos::MM);
+    plot2d::plot(
+        root2,
         [
             ("Original", path.as_slice()),
-            (
-                &format!("EFD Reconstructed ({harmonic} harmonics)"),
-                path_recon.as_slice(),
-            ),
-            (
-                &format!("FD Reconstructed ({harmonic} harmonics)"),
-                fft_recon.as_slice(),
-            ),
+            ("EFD Reconstructed", path_recon.as_slice()),
         ],
-        plot2d::Opt::from(None)
-            // .scale_bar(1.)
-            // .axis(false)
-            .grid(false)
-            .dot(true)
-            .stroke(4),
+        opt.clone(),
+    )?;
+    plot2d::plot(
+        root3,
+        [
+            ("Original", path.as_slice()),
+            ("FD Reconstructed", fft_recon.as_slice()),
+        ],
+        opt,
     )?;
     Ok(())
 }
