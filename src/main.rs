@@ -27,9 +27,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const PATH: &[&str] = &[
         "../four-bar-rs/syn-examples/crunode.closed.ron",
         "../four-bar-rs/syn-examples/cusp.closed.ron",
+        "../four-bar-rs/syn-examples/heart.closed.ron",
         "../four-bar-rs/syn-examples/c-shape.open.ron",
         "../four-bar-rs/syn-examples/sharp.open.ron",
-        "../four-bar-rs/syn-examples/heart.closed.ron",
     ];
     let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
     let path = fb.curve(360);
