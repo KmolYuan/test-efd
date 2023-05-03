@@ -1,4 +1,4 @@
-use four_bar::{efd::Curve as _, plot2d::IntoDrawingArea, *};
+use four_bar::{plot2d::IntoDrawingArea, *};
 
 fn fft_recon(path: &[[f64; 2]], harmonic: usize) -> Vec<[f64; 2]> {
     use rustfft::{num_complex::Complex, num_traits::Zero as _};
@@ -33,10 +33,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
     let path = fb.curve(360);
-    let path_closed = path.clone().closed_lin();
-    let efd = efd::Efd2::from_curve_harmonic(&path_closed, None).unwrap();
+    let efd = efd::Efd2::from_curve(&path, true);
     let harmonic = efd.harmonic();
-    let fft_recon = fft_recon(&path_closed[..path_closed.len() - 1], harmonic * 2);
+    let fft_recon = fft_recon(&path, harmonic * 2);
     let path_recon = efd.generate(180);
     let b = plot2d::SVGBackend::new("test.svg", (800 * 3, 800));
     let mut roots = b.into_drawing_area().split_evenly((1, 3));
