@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "../four-bar-rs/syn-examples/sharp.open.ron",
     ];
     let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
-    let path: Vec<[f64; 2]> = fb.curve(360);
+    let path = fb.curve(360);
 
     // Drect method
     let harmonic = 19;
