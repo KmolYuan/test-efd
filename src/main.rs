@@ -33,19 +33,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "../four-bar-rs/syn-examples/sharp.open.ron",
     ];
     let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
-    let path = fb.curve(360);
+    let path: Vec<[f64; 2]> = fb.curve(360);
 
     // Drect method
     let harmonic = 19;
-    let t0 = std::time::Instant::now();
-    let efd = efd::Efd2::from_curve_harmonic(&path, true, None);
-    dbg!(t0.elapsed());
+    // let harmonic = path.len() / 2;
+    let efd_time = std::time::Instant::now();
+    let efd = efd::Efd2::from_curve_harmonic(&path, true, harmonic);
+    dbg!(efd_time.elapsed());
+
+    let fd_time = std::time::Instant::now();
     let fft_recon = fft_recon(&path, harmonic * 2);
+    dbg!(fd_time.elapsed());
     let path_recon = efd.generate(180);
 
     let efd_fitting_recon = {
-        let harmonic = path.len() / 2;
-        let t0 = std::time::Instant::now();
+        let efd_fitting_time = std::time::Instant::now();
         let theta = na::RowDVector::from_fn(path.len(), |_, i| i as f64 / path.len() as f64 * PI);
         let ax = na::MatrixXx2::from_row_iterator(path.len(), path.iter().flatten().copied());
         let mut a = na::DMatrix::zeros(2 * harmonic, path.len());
@@ -58,17 +61,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let a2 = a.transpose();
         let omega = &a * a2;
         let y = a * ax;
-        let x = omega.lu().solve(&y).unwrap();
-        let coeffs = na::MatrixXx4::from_columns(&[
-            x.column(0).rows(0, harmonic),
-            x.column(0).rows(harmonic, harmonic),
-            x.column(1).rows(0, harmonic),
-            x.column(1).rows(harmonic, harmonic),
-        ])
-        .transpose();
+        let x = omega.lu().solve(&y).unwrap().transpose();
+        let coeffs = efd::Coeff2::from_rows(&[
+            x.row(0).columns(0, harmonic),
+            x.row(0).columns(harmonic, harmonic),
+            x.row(1).columns(0, harmonic),
+            x.row(1).columns(harmonic, harmonic),
+        ]);
         let efd2 = efd::Efd2::try_from_coeffs(coeffs).unwrap();
-        dbg!(t0.elapsed());
+        dbg!(efd_fitting_time.elapsed());
         efd2.generate_half(360)
+    };
+
+    let fd_fitting_recon = {
+        let p = (harmonic - 1) as isize / 2;
+        let fd_fitting_time = std::time::Instant::now();
+        let z =
+            na::RowDVector::from_fn(path.len(), |_, i| na::Complex::new(path[i][0], path[i][1]));
+        let theta = na::RowDVector::from_fn(path.len(), |_, i| {
+            na::Complex::from(i as f64 / path.len() as f64 * PI)
+        });
+        let omega = na::DMatrix::from_fn(harmonic, harmonic, |m, k| {
+            (&theta * na::Complex::from(k as f64 - m as f64) * na::Complex::i())
+                .map(na::Complex::exp)
+                .sum()
+        });
+        let y = na::DVector::from_fn(harmonic, |m, _| {
+            let ey = (&theta * ((m as isize - p) as f64 * -na::Complex::i())).map(na::Complex::exp);
+            (&z * ey.transpose())[0]
+        });
+        let x = omega.lu().solve(&y).unwrap();
+        dbg!(fd_fitting_time.elapsed());
+        let n = 360;
+        let theta = na::RowDVector::from_fn(n, |_, i| na::Complex::from(i as f64 / n as f64 * PI));
+        let ec = {
+            let p =
+                na::DVector::from_fn(harmonic, |i, _| na::Complex::from((i as isize - p) as f64));
+            (p * theta * na::Complex::i()).map(na::Complex::exp)
+        };
+        (x.transpose() * ec)
+            .column_iter()
+            .map(|c| [c[0].re, c[0].im])
+            .collect::<Vec<_>>()
     };
 
     // Plot
@@ -102,6 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         [
             ("Original", path.as_slice()),
             ("FD Reconstructed", fft_recon.as_slice()),
+            ("FD Fitting Reconstructed", fd_fitting_recon.as_slice()),
         ],
         opt,
     )?;
