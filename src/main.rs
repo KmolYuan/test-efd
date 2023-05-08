@@ -68,13 +68,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             x.row(1).columns(0, harmonic),
             x.row(1).columns(harmonic, harmonic),
         ]);
-        let efd2 = efd::Efd2::try_from_coeffs(coeffs).unwrap();
+        let efd2 = efd::Efd2::try_from_coeffs_unnorm(coeffs).unwrap();
         dbg!(efd_fitting_time.elapsed());
         efd2.generate_half(360)
     };
 
     let fd_fitting_recon = {
-        let p = (harmonic - 1) as isize / 2;
+        let p = harmonic as isize;
         let fd_fitting_time = std::time::Instant::now();
         let z =
             na::RowDVector::from_fn(path.len(), |_, i| na::Complex::new(path[i][0], path[i][1]));
