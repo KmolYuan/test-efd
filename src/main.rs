@@ -48,6 +48,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path_recon = efd.generate(180);
 
     let efd_fitting_recon = {
+        let mut path = efd.generate_norm_in(path.len(), PI);
+        let rot = efd::Transform2::new([0.; 2], na::UnitComplex::new(10f64.to_radians()), 1.);
+        rot.transform_inplace(&mut path);
         let efd_fitting_time = std::time::Instant::now();
         let theta = na::RowDVector::from_fn(path.len(), |_, i| i as f64 / path.len() as f64 * PI);
         let ax = na::MatrixXx2::from_row_iterator(path.len(), path.iter().flatten().copied());
@@ -70,6 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]);
         let efd2 = efd::Efd2::try_from_coeffs_unnorm(coeffs).unwrap();
         dbg!(efd_fitting_time.elapsed());
+        dbg!(efd2.coeffs()[(0, 0)].hypot(efd2.coeffs()[(2, 0)]));
         efd2.generate_half(360)
     };
 
