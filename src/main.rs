@@ -36,11 +36,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = fb.curve(360);
 
     // Drect method
-    let harmonic = 19;
-    // let harmonic = path.len() / 2;
     let efd_time = std::time::Instant::now();
-    let efd = efd::Efd2::from_curve_harmonic(&path, true, harmonic);
-    dbg!(efd_time.elapsed());
+    let efd = efd::Efd2::from_curve_harmonic(&path, true, None);
+    let harmonic = efd.harmonic();
+    dbg!(harmonic, efd_time.elapsed());
 
     let fd_time = std::time::Instant::now();
     let fft_recon = fft_recon(&path, harmonic * 2);
@@ -48,9 +47,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path_recon = efd.generate(180);
 
     let efd_fitting_recon = {
-        let mut path = efd.generate_norm_in(path.len(), PI);
-        let rot = efd::Transform2::new([0.; 2], na::UnitComplex::new(10f64.to_radians()), 1.);
-        rot.transform_inplace(&mut path);
         let efd_fitting_time = std::time::Instant::now();
         let theta = na::RowDVector::from_fn(path.len(), |_, i| i as f64 / path.len() as f64 * PI);
         let ax = na::MatrixXx2::from_row_iterator(path.len(), path.iter().flatten().copied());
@@ -73,12 +69,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]);
         let efd2 = efd::Efd2::try_from_coeffs_unnorm(coeffs).unwrap();
         dbg!(efd_fitting_time.elapsed());
-        dbg!(efd2.coeffs()[(0, 0)].hypot(efd2.coeffs()[(2, 0)]));
         efd2.generate_half(360)
     };
 
     let fd_fitting_recon = {
         let p = harmonic as isize;
+        let harmonic = p as usize * 2 + 1;
         let fd_fitting_time = std::time::Instant::now();
         let z =
             na::RowDVector::from_fn(path.len(), |_, i| na::Complex::new(path[i][0], path[i][1]));
