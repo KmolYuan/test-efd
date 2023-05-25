@@ -1,4 +1,4 @@
-use four_bar::{efd, efd::na, plot2d, plot2d::IntoDrawingArea, FourBar};
+use four_bar::{efd::na, plot2d::IntoDrawingArea as _, *};
 use std::f64::consts::PI;
 
 fn fft_recon(path: &[[f64; 2]], harmonic: usize) -> Vec<[f64; 2]> {
