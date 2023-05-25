@@ -34,6 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
     let path = fb.curve(360);
+    // let path = "../four-bar-rs/syn-examples/slice.partial.csv";
+    // let path = csv::parse_csv(&std::fs::read_to_string(path)?)?;
 
     // Drect method
     let efd_time = std::time::Instant::now();
@@ -119,7 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let opt = plot2d::Opt::new()
         .grid(false)
-        .font(20.)
+        .font(40.)
         .dot(true)
         .legend(plot2d::LegendPos::MM);
     plot2d::plot(
