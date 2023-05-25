@@ -37,16 +37,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let path = "../four-bar-rs/syn-examples/slice.partial.csv";
     // let path = csv::parse_csv(&std::fs::read_to_string(path)?)?;
 
-    // Drect method
     let efd_time = std::time::Instant::now();
     let efd = efd::Efd2::from_curve_harmonic(&path, true, None);
     let harmonic = efd.harmonic();
     dbg!(harmonic, efd_time.elapsed());
+    let path_recon = efd.generate(180);
 
     let fd_time = std::time::Instant::now();
     let fft_recon = fft_recon(&path, harmonic * 2);
     dbg!(fd_time.elapsed());
-    let path_recon = efd.generate(180);
 
     let efd_fitting_recon = {
         let efd_fitting_time = std::time::Instant::now();
