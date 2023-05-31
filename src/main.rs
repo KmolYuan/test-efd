@@ -25,31 +25,35 @@ fn fft_recon(path: &[[f64; 2]], harmonic: usize) -> Vec<[f64; 2]> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    const PATH: &[&str] = &[
-        "../four-bar-rs/syn-examples/crunode.closed.ron",
-        "../four-bar-rs/syn-examples/cusp.closed.ron",
-        "../four-bar-rs/syn-examples/heart.closed.ron",
-        "../four-bar-rs/syn-examples/c-shape.open.ron",
-        "../four-bar-rs/syn-examples/sharp.open.ron",
-    ];
-    let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
-    let path = fb.curve(360);
-    // let path = "../four-bar-rs/syn-examples/slice.partial.csv";
-    // let path = csv::parse_csv(&std::fs::read_to_string(path)?)?;
+    // const PATH: &[&str] = &[
+    //     "../four-bar-rs/syn-examples/crunode.closed.ron",
+    //     "../four-bar-rs/syn-examples/cusp.closed.ron",
+    //     "../four-bar-rs/syn-examples/heart.closed.ron",
+    //     "../four-bar-rs/syn-examples/c-shape.open.ron",
+    //     "../four-bar-rs/syn-examples/sharp.open.ron",
+    // ];
+    // let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
+    // let path = fb.curve(360);
+    let path = "../four-bar-rs/syn-examples/slice.partial.csv";
+    let path = csv::parse_csv(std::fs::File::open(path)?)?;
 
     let efd_time = std::time::Instant::now();
-    let efd = efd::Efd2::from_curve_harmonic(&path, true, None);
+    let efd = efd::Efd2::from_curve_harmonic(&path, true, 10);
     let harmonic = efd.harmonic();
     dbg!(harmonic, efd_time.elapsed());
     let path_recon = efd.generate(180);
+    println!("efd-err = {}", efd::curve_diff(&path, &path_recon));
 
     let fd_time = std::time::Instant::now();
-    let fft_recon = fft_recon(&path, harmonic * 2);
+    let fft_recon = fft_recon(&path, 8);
     dbg!(fd_time.elapsed());
+    println!("fd-err = {}", efd::curve_diff(&path, &fft_recon));
 
     let efd_fitting_recon = {
+        let harmonic = 5;
         let efd_fitting_time = std::time::Instant::now();
-        let theta = na::RowDVector::from_fn(path.len(), |_, i| i as f64 / path.len() as f64 * PI);
+        let theta =
+            na::RowDVector::from_fn(path.len(), |_, i| i as f64 / (path.len() - 1) as f64 * PI);
         let ax = na::MatrixXx2::from_row_iterator(path.len(), path.iter().flatten().copied());
         let mut a = na::DMatrix::zeros(2 * harmonic, path.len());
         for r in 0..harmonic {
@@ -72,6 +76,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         dbg!(efd_fitting_time.elapsed());
         efd2.generate_half(360)
     };
+    println!(
+        "efd-fit-err = {}",
+        efd::curve_diff(&path, &efd_fitting_recon)
+    );
 
     let fd_fitting_recon = {
         let p = harmonic as isize;
@@ -105,6 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|c| [c[0].re, c[0].im])
             .collect::<Vec<_>>()
     };
+    println!("fd-fit-err = {}", efd::curve_diff(&path, &fd_fitting_recon));
 
     // Plot
     let b = plot2d::SVGBackend::new("test.svg", (800 * 3, 800));
@@ -113,16 +122,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     plot2d::plot(
         root1,
         [("", path.as_slice())],
-        plot2d::Opt::from(&fb)
+        plot2d::Opt::from(None)
             .grid(false)
             .axis(false)
             .scale_bar(true),
     )?;
     let opt = plot2d::Opt::new()
         .grid(false)
-        .font(40.)
+        .font(30.)
         .dot(true)
-        .legend(plot2d::LegendPos::MM);
+        .legend(plot2d::LegendPos::LR);
     plot2d::plot(
         root2,
         [
