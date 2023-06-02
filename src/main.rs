@@ -41,15 +41,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let efd = efd::Efd2::from_curve_harmonic(&path, true, 10);
     let harmonic = efd.harmonic();
     dbg!(harmonic, efd_time.elapsed());
-    let path_recon = efd.generate(90);
-    println!("efd-err = {}", efd::curve_diff(&path, &path_recon));
+    let path_efd = efd.generate(90);
+    println!("efd-err = {}", efd::curve_diff(&path, &path_efd));
 
     let fd_time = std::time::Instant::now();
-    let fft_recon = fft_recon(&path, 8);
+    let path_fft = fft_recon(&path, 8);
     dbg!(fd_time.elapsed());
-    println!("fd-err = {}", efd::curve_diff(&path, &fft_recon));
+    println!("fd-err = {}", efd::curve_diff(&path, &path_fft));
 
-    let efd_fit_recon = {
+    let path_efd_fit = {
         let harmonic = 5;
         let efd_fitting_time = std::time::Instant::now();
         let theta =
@@ -76,9 +76,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         dbg!(efd_fitting_time.elapsed());
         efd2.generate_half(90)
     };
-    println!("efd-fit-err = {}", efd::curve_diff(&path, &efd_fit_recon));
+    println!("efd-fit-err = {}", efd::curve_diff(&path, &path_efd_fit));
 
-    let fd_fit_recon = {
+    let path_fd_fit = {
         let p = harmonic as isize;
         let harmonic = p as usize * 2 + 1;
         let fd_fitting_time = std::time::Instant::now();
@@ -110,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|c| [c[0].re, c[0].im])
             .collect::<Vec<_>>()
     };
-    println!("fd-fit-err = {}", efd::curve_diff(&path, &fd_fit_recon));
+    println!("fd-fit-err = {}", efd::curve_diff(&path, &path_fd_fit));
 
     // Plot
     let b = SVGBackend::new("test.svg", (800 * 3, 800));
@@ -129,13 +129,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     figure
         .clone()
         .add_line("Original", path.clone(), Style::Circle, RED)
-        .add_line("EFD", path_recon, Style::Triangle, BLUE)
-        .add_line("EFD Fitting", efd_fit_recon, Style::Cross, BLACK)
+        .add_line("EFD", path_efd, Style::Triangle, BLUE)
+        .add_line("EFD Fitting", path_efd_fit, Style::Cross, BLACK)
         .plot(root2)?;
     figure
         .add_line("Original", path, Style::Circle, RED)
-        .add_line("FD", fft_recon, Style::Triangle, BLUE)
-        .add_line("FD Fitting", fd_fit_recon, Style::Cross, BLACK)
+        .add_line("FD", path_fft, Style::Triangle, BLUE)
+        .add_line("FD Fitting", path_fd_fit, Style::Cross, BLACK)
         .plot(root3)?;
     Ok(())
 }
