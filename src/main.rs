@@ -1,4 +1,4 @@
-use four_bar::{efd::na, plot2d::IntoDrawingArea as _, *};
+use four_bar::{efd::na, plot2d::*, *};
 use std::f64::consts::PI;
 
 fn fft_recon(path: &[[f64; 2]], harmonic: usize) -> Vec<[f64; 2]> {
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let efd = efd::Efd2::from_curve_harmonic(&path, true, 10);
     let harmonic = efd.harmonic();
     dbg!(harmonic, efd_time.elapsed());
-    let path_recon = efd.generate(180);
+    let path_recon = efd.generate(90);
     println!("efd-err = {}", efd::curve_diff(&path, &path_recon));
 
     let fd_time = std::time::Instant::now();
@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dbg!(fd_time.elapsed());
     println!("fd-err = {}", efd::curve_diff(&path, &fft_recon));
 
-    let efd_fitting_recon = {
+    let efd_fit_recon = {
         let harmonic = 5;
         let efd_fitting_time = std::time::Instant::now();
         let theta =
@@ -74,14 +74,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]);
         let efd2 = efd::Efd2::try_from_coeffs_unnorm(coeffs).unwrap();
         dbg!(efd_fitting_time.elapsed());
-        efd2.generate_half(360)
+        efd2.generate_half(90)
     };
-    println!(
-        "efd-fit-err = {}",
-        efd::curve_diff(&path, &efd_fitting_recon)
-    );
+    println!("efd-fit-err = {}", efd::curve_diff(&path, &efd_fit_recon));
 
-    let fd_fitting_recon = {
+    let fd_fit_recon = {
         let p = harmonic as isize;
         let harmonic = p as usize * 2 + 1;
         let fd_fitting_time = std::time::Instant::now();
@@ -101,7 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         let x = omega.lu().solve(&y).unwrap();
         dbg!(fd_fitting_time.elapsed());
-        let n = 360;
+        let n = 90;
         let theta = na::RowDVector::from_fn(n, |_, i| na::Complex::from(i as f64 / n as f64 * PI));
         let ec = {
             let p =
@@ -113,42 +110,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|c| [c[0].re, c[0].im])
             .collect::<Vec<_>>()
     };
-    println!("fd-fit-err = {}", efd::curve_diff(&path, &fd_fitting_recon));
+    println!("fd-fit-err = {}", efd::curve_diff(&path, &fd_fit_recon));
 
     // Plot
-    let b = plot2d::SVGBackend::new("test.svg", (800 * 3, 800));
+    let b = SVGBackend::new("test.svg", (800 * 3, 800));
     let mut roots = b.into_drawing_area().split_evenly((1, 3));
     let [root1, root2, root3] = [roots.remove(0), roots.remove(0), roots.remove(0)];
-    plot2d::plot(
-        root1,
-        [("", path.as_slice())],
-        plot2d::Opt::from(None)
-            .grid(false)
-            .axis(false)
-            .scale_bar(true),
-    )?;
-    let opt = plot2d::Opt::new()
+    Figure::from(None)
+        .grid(false)
+        .axis(false)
+        .scale_bar(true)
+        .add_line("", path.clone(), Style::Line, RED)
+        .plot(root1)?;
+    let figure = Figure::new()
         .grid(false)
         .font(30.)
-        .dot(true)
-        .legend(plot2d::LegendPos::LR);
-    plot2d::plot(
-        root2,
-        [
-            ("Original", path.as_slice()),
-            ("EFD Reconstructed", path_recon.as_slice()),
-            ("EFD Fitting Reconstructed", efd_fitting_recon.as_slice()),
-        ],
-        opt.clone(),
-    )?;
-    plot2d::plot(
-        root3,
-        [
-            ("Original", path.as_slice()),
-            ("FD Reconstructed", fft_recon.as_slice()),
-            ("FD Fitting Reconstructed", fd_fitting_recon.as_slice()),
-        ],
-        opt,
-    )?;
+        .legend(Some(LegendPos::LR));
+    figure
+        .clone()
+        .add_line("Original", path.clone(), Style::Circle, RED)
+        .add_line("EFD", path_recon, Style::Triangle, BLUE)
+        .add_line("EFD Fitting", efd_fit_recon, Style::Cross, BLACK)
+        .plot(root2)?;
+    figure
+        .add_line("Original", path, Style::Circle, RED)
+        .add_line("FD", fft_recon, Style::Triangle, BLUE)
+        .add_line("FD Fitting", fd_fit_recon, Style::Cross, BLACK)
+        .plot(root3)?;
     Ok(())
 }
