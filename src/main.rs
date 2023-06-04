@@ -37,19 +37,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = "../four-bar-rs/syn-examples/slice.partial.csv";
     let path = csv::parse_csv(std::fs::File::open(path)?)?;
 
+    const PT: usize = 45;
     let efd_time = std::time::Instant::now();
     let efd = efd::Efd2::from_curve_harmonic(&path, true, 10);
     let harmonic = efd.harmonic();
     dbg!(harmonic, efd_time.elapsed());
-    let path_efd = efd.generate(90);
-    println!("efd-err = {}", efd::curve_diff(&path, &path_efd));
+    let p_efd = efd.generate(PT);
+    println!("efd-err = {}", efd::curve_diff(&path, &p_efd));
 
     let fd_time = std::time::Instant::now();
-    let path_fft = fft_recon(&path, 8);
+    let p_fft = fft_recon(&path, harmonic * 2);
     dbg!(fd_time.elapsed());
-    println!("fd-err = {}", efd::curve_diff(&path, &path_fft));
+    println!("fd-err = {}", efd::curve_diff(&path, &p_fft));
 
-    let path_efd_fit = {
+    let p_efd_fit = {
         let harmonic = 5;
         let efd_fitting_time = std::time::Instant::now();
         let theta =
@@ -68,17 +69,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let x = omega.lu().solve(&y).unwrap().transpose();
         let coeffs = efd::Coeff2::from_rows(&[
             x.row(0).columns(0, harmonic),
-            x.row(0).columns(harmonic, harmonic),
             x.row(1).columns(0, harmonic),
+            x.row(0).columns(harmonic, harmonic),
             x.row(1).columns(harmonic, harmonic),
         ]);
         let efd2 = efd::Efd2::try_from_coeffs_unnorm(coeffs).unwrap();
         dbg!(efd_fitting_time.elapsed());
-        efd2.generate_half(90)
+        efd2.generate_half(PT)
     };
-    println!("efd-fit-err = {}", efd::curve_diff(&path, &path_efd_fit));
+    println!("efd-fit-err = {}", efd::curve_diff(&path, &p_efd_fit));
 
-    let path_fd_fit = {
+    let p_fd_fit = {
         let p = harmonic as isize;
         let harmonic = p as usize * 2 + 1;
         let fd_fitting_time = std::time::Instant::now();
@@ -98,8 +99,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         let x = omega.lu().solve(&y).unwrap();
         dbg!(fd_fitting_time.elapsed());
-        let n = 90;
-        let theta = na::RowDVector::from_fn(n, |_, i| na::Complex::from(i as f64 / n as f64 * PI));
+        let theta =
+            na::RowDVector::from_fn(PT, |_, i| na::Complex::from(i as f64 / PT as f64 * PI));
         let ec = {
             let p =
                 na::DVector::from_fn(harmonic, |i, _| na::Complex::from((i as isize - p) as f64));
@@ -110,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|c| [c[0].re, c[0].im])
             .collect::<Vec<_>>()
     };
-    println!("fd-fit-err = {}", efd::curve_diff(&path, &path_fd_fit));
+    println!("fd-fit-err = {}", efd::curve_diff(&path, &p_fd_fit));
 
     // Plot
     let b = SVGBackend::new("test.svg", (800 * 3, 800));
@@ -122,20 +123,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .scale_bar(true)
         .add_line("", path.clone(), Style::Line, RED)
         .plot(root1)?;
-    let figure = Figure::new()
+    let fig = Figure::new()
         .grid(false)
         .font(30.)
-        .legend(Some(LegendPos::LR));
-    figure
-        .clone()
-        .add_line("Original", path.clone(), Style::Circle, RED)
-        .add_line("EFD", path_efd, Style::Triangle, BLUE)
-        .add_line("EFD Fitting", path_efd_fit, Style::Cross, BLACK)
+        .legend(Some(LegendPos::LL))
+        .add_line("Original", path, Style::Circle, RED);
+    fig.clone()
+        .add_line("EFD Reconstructed", p_efd, Style::Triangle, BLUE)
+        .add_line("EFD Fitting Reconstructed", p_efd_fit, Style::Cross, BLACK)
         .plot(root2)?;
-    figure
-        .add_line("Original", path, Style::Circle, RED)
-        .add_line("FD", path_fft, Style::Triangle, BLUE)
-        .add_line("FD Fitting", path_fd_fit, Style::Cross, BLACK)
+    fig.add_line("FD Reconstructed", p_fft, Style::Triangle, BLUE)
+        .add_line("FD Fitting Reconstructed", p_fd_fit, Style::Cross, BLACK)
         .plot(root3)?;
     Ok(())
 }
