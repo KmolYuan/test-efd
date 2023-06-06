@@ -37,12 +37,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = "../four-bar-rs/syn-examples/slice.partial.csv";
     let path = csv::parse_csv(std::fs::File::open(path)?)?;
 
-    const PT: usize = 45;
+    let pt = path.len();
     let efd_time = std::time::Instant::now();
     let efd = efd::Efd2::from_curve_harmonic(&path, true, 10);
     let harmonic = efd.harmonic();
     dbg!(harmonic, efd_time.elapsed());
-    let p_efd = efd.generate(PT);
+    let p_efd = efd.generate_half(pt);
     println!("efd-err = {}", efd::curve_diff(&path, &p_efd));
 
     let fd_time = std::time::Instant::now();
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]);
         let efd2 = efd::Efd2::try_from_coeffs_unnorm(coeffs).unwrap();
         dbg!(efd_fitting_time.elapsed());
-        efd2.generate_half(PT)
+        efd2.generate_half(pt)
     };
     println!("efd-fit-err = {}", efd::curve_diff(&path, &p_efd_fit));
 
@@ -100,7 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let x = omega.lu().solve(&y).unwrap();
         dbg!(fd_fitting_time.elapsed());
         let theta =
-            na::RowDVector::from_fn(PT, |_, i| na::Complex::from(i as f64 / PT as f64 * PI));
+            na::RowDVector::from_fn(pt, |_, i| na::Complex::from(i as f64 / pt as f64 * PI));
         let ec = {
             let p =
                 na::DVector::from_fn(harmonic, |i, _| na::Complex::from((i as isize - p) as f64));
@@ -126,7 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fig = Figure::new()
         .grid(false)
         .font(30.)
-        .legend(Some(LegendPos::LL))
+        .legend(LegendPos::LL)
         .add_line("Original", path, Style::Circle, RED);
     fig.clone()
         .add_line("EFD Reconstructed", p_efd, Style::Triangle, BLUE)
