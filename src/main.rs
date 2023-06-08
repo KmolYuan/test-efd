@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .plot(root1)?;
     let fig = Figure::new()
         .grid(false)
-        .font(30.)
+        .font(45.)
         .legend(LegendPos::LL)
         .add_line("Original", path, Style::Circle, RED);
     fig.clone()
