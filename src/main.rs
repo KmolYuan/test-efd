@@ -1,10 +1,14 @@
 use four_bar::{efd::na, plot2d::*, *};
 use std::f64::consts::PI;
 
-fn fft_recon(path: &[[f64; 2]], harmonic: usize) -> Vec<[f64; 2]> {
+fn fft_recon<C>(path: C, harmonic: usize) -> Vec<[f64; 2]>
+where
+    C: efd::Curve<[f64; 2]>,
+{
     use rustfft::{num_complex::Complex, num_traits::Zero as _};
 
     let mut data = path
+        .as_curve()
         .iter()
         .map(|&[re, im]| Complex { re, im })
         .collect::<Vec<_>>();
@@ -46,7 +50,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("efd-err = {}", efd::curve_diff(&path, &p_efd));
 
     let fd_time = std::time::Instant::now();
-    let p_fft = fft_recon(&path, harmonic * 2);
+    let fd_path = path
+        .iter()
+        .chain(path.iter().rev().skip(1))
+        .copied()
+        .collect::<Vec<_>>();
+    let p_fft = fft_recon(fd_path, harmonic * 2);
     dbg!(fd_time.elapsed());
     println!("fd-err = {}", efd::curve_diff(&path, &p_fft));
 
