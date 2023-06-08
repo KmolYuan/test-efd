@@ -51,7 +51,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("fd-err = {}", efd::curve_diff(&path, &p_fft));
 
     let p_efd_fit = {
-        let harmonic = 5;
         let efd_fitting_time = std::time::Instant::now();
         let theta =
             na::RowDVector::from_fn(path.len(), |_, i| i as f64 / (path.len() - 1) as f64 * PI);
