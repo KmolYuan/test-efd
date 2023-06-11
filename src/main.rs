@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = "../four-bar-rs/syn-examples/slice.partial.csv";
     let path = csv::parse_csv(std::fs::File::open(path)?)?;
 
-    let pt = path.len();
+    let pt = 30;
     let efd_time = std::time::Instant::now();
     let efd = efd::Efd2::from_curve_harmonic(&path, true, 10);
     let harmonic = efd.harmonic();
@@ -59,6 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dbg!(fd_time.elapsed());
     println!("fd-err = {}", efd::curve_diff(&path, &p_fft));
 
+    let harmonic = 7;
     let p_efd_fit = {
         let efd_fitting_time = std::time::Instant::now();
         let theta =
@@ -94,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let z =
             na::RowDVector::from_fn(path.len(), |_, i| na::Complex::new(path[i][0], path[i][1]));
         let theta = na::RowDVector::from_fn(path.len(), |_, i| {
-            na::Complex::from(i as f64 / path.len() as f64 * PI)
+            na::Complex::from(i as f64 / (path.len() - 1) as f64 * PI)
         });
         let omega = na::DMatrix::from_fn(harmonic, harmonic, |m, k| {
             (&theta * na::Complex::from(k as f64 - m as f64) * na::Complex::i())
@@ -107,8 +108,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         let x = omega.lu().solve(&y).unwrap();
         dbg!(fd_fitting_time.elapsed());
-        let theta =
-            na::RowDVector::from_fn(pt, |_, i| na::Complex::from(i as f64 / pt as f64 * PI));
+        let theta = na::RowDVector::from_fn(pt, |_, i| {
+            na::Complex::from(i as f64 / (pt - 1) as f64 * PI)
+        });
         let ec = {
             let p =
                 na::DVector::from_fn(harmonic, |i, _| na::Complex::from((i as isize - p) as f64));
