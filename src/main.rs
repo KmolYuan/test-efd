@@ -130,7 +130,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Figure::from(None)
         .grid(false)
         .axis(false)
-        .scale_bar(true)
         .add_line("", path.clone(), Style::Line, RED)
         .plot(root1)?;
     let fig = Figure::new()
