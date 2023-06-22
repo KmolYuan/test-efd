@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .chain(path.iter().rev().skip(1))
         .copied()
         .collect::<Vec<_>>();
-    let p_fft = fft_recon(fd_path, harmonic * 2);
+    let p_fft = fft_recon(fd_path, 19);
     dbg!(fd_time.elapsed());
     println!("fd-err = {}", efd::curve_diff(&path, &p_fft));
 
@@ -88,6 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("efd-fit-err = {}", efd::curve_diff(&path, &p_efd_fit));
 
+    let harmonic = 1;
     let p_fd_fit = {
         let p = harmonic as isize;
         let harmonic = p as usize * 2 + 1;
