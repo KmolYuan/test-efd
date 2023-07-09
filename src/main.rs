@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = "../four-bar-rs/syn-examples/slice.partial.csv";
     let path = csv::parse_csv(std::fs::File::open(path)?)?;
 
-    let pt = 30;
+    let pt = 90;
     let efd_time = std::time::Instant::now();
     let efd = efd::Efd2::from_curve_harmonic(&path, true, 10);
     let harmonic = efd.harmonic();
@@ -125,25 +125,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("fd-fit-err = {}", efd::curve_diff(&path, &p_fd_fit));
 
     // Plot
-    let b = SVGBackend::new("test.svg", (800 * 3, 800));
-    let mut roots = b.into_drawing_area().split_evenly((1, 3));
-    let [root1, root2, root3] = [roots.remove(0), roots.remove(0), roots.remove(0)];
-    Figure::from(None)
-        .grid(false)
-        .axis(false)
-        .add_line("", path.clone(), Style::Line, RED)
-        .plot(root1)?;
+    let b = SVGBackend::new("test.svg", (1600, 800));
+    let (root_l, root_r) = b.into_drawing_area().split_horizontally(800);
     let fig = Figure::new()
         .grid(false)
         .font(45.)
         .legend(LegendPos::LL)
         .add_line("Original", path, Style::Circle, RED);
     fig.clone()
-        .add_line("EFD Reconstructed", p_efd, Style::Triangle, BLUE)
-        .add_line("EFD Fitting Reconstructed", p_efd_fit, Style::Cross, BLACK)
-        .plot(root2)?;
-    fig.add_line("FD Reconstructed", p_fft, Style::Triangle, BLUE)
-        .add_line("FD Fitting Reconstructed", p_fd_fit, Style::Cross, BLACK)
-        .plot(root3)?;
+        .add_line("EFD Reconstructed", p_efd, Style::Line, BLUE)
+        .plot(root_l)?;
+    fig.clone()
+        .add_line("EFD Fitting Reconstructed", p_efd_fit, Style::Line, BLACK)
+        .plot(root_r)?;
     Ok(())
 }
