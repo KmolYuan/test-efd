@@ -1,12 +1,11 @@
 use four_bar::{efd::na, plot2d::*, *};
 use std::f64::consts::PI;
 
-fn fft_recon<C>(path: C, harmonic: usize) -> Vec<[f64; 2]>
+fn fft_recon<C>(path: C, harmonic: usize, pt: usize) -> Vec<[f64; 2]>
 where
     C: efd::Curve<[f64; 2]>,
 {
     use rustfft::{num_complex::Complex, num_traits::Zero as _};
-
     let mut data = path
         .as_curve()
         .iter()
@@ -15,13 +14,22 @@ where
     let len = data.len();
     let mut plan = rustfft::FftPlanner::new();
     plan.plan_fft_forward(len).process(&mut data);
+    // Remove high frequency
     let n1 = harmonic / 2;
     let n2 = n1 + harmonic % 2;
     data.iter_mut()
         .take(len - n1)
         .skip(n2)
         .for_each(|c| c.set_zero());
-    plan.plan_fft_inverse(len).process(&mut data);
+    // Change point number
+    if pt < len {
+        let n1 = pt / 2;
+        let n2 = n1 + pt % 2;
+        data.drain(n2..len - n1);
+    } else {
+        data.splice(n1..n1, std::iter::repeat(Complex::zero()).take(pt - len));
+    }
+    plan.plan_fft_inverse(data.len()).process(&mut data);
     data.into_iter()
         .map(|c| c / len as f64)
         .map(|Complex { re, im }| [re, im])
@@ -29,35 +37,45 @@ where
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // const PATH: &[&str] = &[
-    //     "../four-bar-rs/syn-examples/crunode.closed.ron",
-    //     "../four-bar-rs/syn-examples/cusp.closed.ron",
-    //     "../four-bar-rs/syn-examples/heart.closed.ron",
-    //     "../four-bar-rs/syn-examples/c-shape.open.ron",
-    //     "../four-bar-rs/syn-examples/sharp.open.ron",
-    // ];
-    // let fb = ron::from_str::<FourBar>(&std::fs::read_to_string(PATH[4])?)?;
-    // let path = fb.curve(360);
-    let path = "../four-bar-rs/syn-examples/slice.partial.csv";
-    let path = csv::parse_csv(std::fs::File::open(path)?)?;
+    const PATH: &[&str] = &[
+        "../four-bar-rs/syn-examples/crunode.closed.ron",
+        "../four-bar-rs/syn-examples/cusp.closed.ron",
+        "../four-bar-rs/syn-examples/heart.closed.ron",
+        "../four-bar-rs/syn-examples/c-shape.open.ron",
+        "../four-bar-rs/syn-examples/sharp.open.ron",
+        "../four-bar-rs/syn-examples/bow.open.ron",
+    ];
+    let fb = ron::de::from_reader::<_, FourBar>(std::fs::File::open(PATH[5])?)?;
+    let path = fb.curve(180);
+    // let path = "5bar.csv";
+    // let path = csv::parse_csv(std::fs::File::open(path)?)?;
 
+    let is_open = true;
     let pt = 90;
     let efd_time = std::time::Instant::now();
-    let efd = efd::Efd2::from_curve_harmonic(&path, true, 10);
+    let efd = efd::Efd2::from_curve_harmonic(&path, is_open, 10);
     let harmonic = efd.harmonic();
     dbg!(harmonic, efd_time.elapsed());
-    let p_efd = efd.generate_half(pt);
+    let p_efd = if is_open {
+        efd.generate_half(pt)
+    } else {
+        efd.generate(pt)
+    };
     println!("efd-err = {}", efd::curve_diff(&path, &p_efd));
 
     let fd_time = std::time::Instant::now();
-    let fd_path = path
-        .iter()
-        .chain(path.iter().rev().skip(1))
-        .copied()
-        .collect::<Vec<_>>();
-    let p_fft = fft_recon(fd_path, 19);
+    let p_fd = if is_open {
+        let fd_path = path
+            .iter()
+            .chain(path.iter().rev().skip(1))
+            .copied()
+            .collect::<Vec<_>>();
+        fft_recon(fd_path, harmonic * 2, pt)
+    } else {
+        fft_recon(&path, harmonic * 2, pt)
+    };
     dbg!(fd_time.elapsed());
-    println!("fd-err = {}", efd::curve_diff(&path, &p_fft));
+    println!("fd-err = {}", efd::curve_diff(&path, &p_fd));
 
     let harmonic = 7;
     let p_efd_fit = {
@@ -133,10 +151,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .legend(LegendPos::LL)
         .add_line("Original", path, Style::Circle, RED);
     fig.clone()
-        .add_line("EFD Reconstructed", p_efd, Style::Line, BLUE)
+        .add_line("EFD Reconstructed", p_efd, Style::Dot, BLUE)
         .plot(root_l)?;
     fig.clone()
-        .add_line("EFD Fitting Reconstructed", p_efd_fit, Style::Line, BLACK)
+        .add_line("FD Reconstructed", p_fd, Style::Dot, BLACK)
         .plot(root_r)?;
     Ok(())
 }
