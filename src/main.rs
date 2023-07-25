@@ -12,24 +12,21 @@ where
         .map(|&[re, im]| Complex { re, im })
         .collect::<Vec<_>>();
     let len = data.len();
+    assert!(pt >= len);
     let mut plan = rustfft::FftPlanner::new();
     plan.plan_fft_forward(len).process(&mut data);
     // Remove high frequency
     let n1 = harmonic / 2;
-    let n2 = n1 + harmonic % 2;
-    data.iter_mut()
-        .take(len - n1)
-        .skip(n2)
-        .for_each(|c| c.set_zero());
-    // Change point number
-    if pt < len {
-        let n1 = pt / 2;
-        let n2 = n1 + pt % 2;
-        data.drain(n2..len - n1);
-    } else {
-        data.splice(n1..n1, std::iter::repeat(Complex::zero()).take(pt - len));
+    if harmonic != len {
+        let n2 = n1 + harmonic % 2;
+        data.iter_mut()
+            .take(len - n1)
+            .skip(n2)
+            .for_each(|c| c.set_zero());
     }
-    plan.plan_fft_inverse(data.len()).process(&mut data);
+    // Change point number
+    data.splice(n1..n1, std::iter::repeat(Complex::zero()).take(pt - len));
+    plan.plan_fft_inverse(pt).process(&mut data);
     data.into_iter()
         .map(|c| c / len as f64)
         .map(|Complex { re, im }| [re, im])
@@ -37,19 +34,30 @@ where
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    const PATH: &[&str] = &[
-        "../four-bar-rs/syn-examples/crunode.closed.ron",
-        "../four-bar-rs/syn-examples/cusp.closed.ron",
-        "../four-bar-rs/syn-examples/heart.closed.ron",
-        "../four-bar-rs/syn-examples/c-shape.open.ron",
-        "../four-bar-rs/syn-examples/sharp.open.ron",
-        "../four-bar-rs/syn-examples/bow.open.ron",
-    ];
-    let fb = ron::de::from_reader::<_, FourBar>(std::fs::File::open(PATH[5])?)?;
-    let path = fb.curve(180);
-    // let path = "5bar.csv";
-    // let path = csv::parse_csv(std::fs::File::open(path)?)?;
-
+    // Path examples:
+    // ./5bar.csv
+    // ../four-bar-rs/syn-examples/crunode.closed.ron
+    // ../four-bar-rs/syn-examples/cusp.closed.ron
+    // ../four-bar-rs/syn-examples/heart.closed.ron
+    // ../four-bar-rs/syn-examples/bow.open.ron
+    // ../four-bar-rs/syn-examples/slice.open.csv
+    // ../four-bar-rs/syn-examples/waterdrop.open.ron
+    let path = {
+        let Some(path) = std::env::args().nth(1) else {
+            panic!("Please input path");
+        };
+        match std::path::Path::new(&path)
+            .extension()
+            .and_then(|s| s.to_str())
+        {
+            Some("csv") => csv::parse_csv(std::fs::File::open(path)?)?,
+            Some("ron") => {
+                let fb = ron::de::from_reader::<_, FourBar>(std::fs::File::open(path)?)?;
+                fb.curve(180)
+            }
+            _ => panic!("Unsupported file type"),
+        }
+    };
     let is_open = true;
     let pt = 90;
     let efd_time = std::time::Instant::now();
