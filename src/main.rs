@@ -36,6 +36,7 @@ where
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Path examples:
     // ./5bar.csv
+    // ./curvature.csv
     // ../four-bar-rs/syn-examples/crunode.closed.ron
     // ../four-bar-rs/syn-examples/cusp.closed.ron
     // ../four-bar-rs/syn-examples/heart.closed.ron
@@ -58,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => panic!("Unsupported file type"),
         }
     };
-    let is_open = true;
+    let is_open = false;
     let pt = 90;
     let efd_time = std::time::Instant::now();
     let efd = efd::Efd2::from_curve_harmonic(&path, is_open, 10);
@@ -156,13 +157,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fig = Figure::new()
         .grid(false)
         .font(45.)
-        .legend(LegendPos::LL)
-        .add_line("Original", path, Style::Circle, RED);
+        .legend(LegendPos::LR)
+        .add_line("Target", path, Style::Circle, RED);
     fig.clone()
-        .add_line("EFD Reconstructed", p_efd, Style::Dot, BLUE)
+        .add_line("EFD", p_efd, Style::Line, BLUE)
         .plot(root_l)?;
     fig.clone()
-        .add_line("FD Reconstructed", p_fd, Style::Dot, BLACK)
+        .add_line("FD", p_fd, Style::Line, BLACK)
         .plot(root_r)?;
     Ok(())
 }
