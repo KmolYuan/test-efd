@@ -1,7 +1,7 @@
 use four_bar::{efd::na, plot2d::*, *};
 use std::f64::consts::PI;
 
-fn fft_recon<C>(path: C, harmonic: usize, pt: usize) -> Vec<[f64; 2]>
+fn fft_recon<C>(path: C, pt: usize) -> Vec<[f64; 2]>
 where
     C: efd::Curve<[f64; 2]>,
 {
@@ -15,6 +15,20 @@ where
     assert!(pt >= len);
     let mut plan = rustfft::FftPlanner::new();
     plan.plan_fft_forward(len).process(&mut data);
+    // Fourier analysis
+    let mut lut = data.iter().map(|c| c.norm_sqr()).collect::<Vec<_>>();
+    lut.sort_unstable_by(|a, b| b.partial_cmp(a).unwrap());
+    // cumsum
+    lut.iter_mut().reduce(|prev, next| {
+        *next += *prev;
+        next
+    });
+    let total_power = lut[lut.len() - 1];
+    lut.iter_mut().for_each(|x| *x /= total_power);
+    let harmonic = match lut.binary_search_by(|x| x.partial_cmp(&0.99999).unwrap()) {
+        Ok(h) | Err(h) => h + 1,
+    };
+    println!("FD harmonic = {harmonic}");
     // Remove high frequency
     let n1 = harmonic / 2;
     if harmonic != len {
@@ -62,9 +76,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let is_open = false;
     let pt = 90;
     let efd_time = std::time::Instant::now();
-    let efd = efd::Efd2::from_curve_harmonic(&path, is_open, 10);
+    let efd = efd::Efd2::from_curve(&path, is_open);
     let harmonic = efd.harmonic();
-    dbg!(harmonic, efd_time.elapsed());
+    println!("EFD harmonic = {harmonic}");
+    println!("EFD time spent = {:?}", efd_time.elapsed());
     let p_efd = if is_open {
         efd.generate_half(pt)
     } else {
@@ -79,11 +94,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .chain(path.iter().rev().skip(1))
             .copied()
             .collect::<Vec<_>>();
-        fft_recon(fd_path, harmonic * 2, pt)
+        fft_recon(fd_path, pt)
     } else {
-        fft_recon(&path, harmonic * 2, pt)
+        fft_recon(&path, pt)
     };
-    dbg!(fd_time.elapsed());
+    println!("FD time spent = {:?}", fd_time.elapsed());
     println!("fd-err = {}", efd::curve_diff(&path, &p_fd));
 
     let harmonic = 7;
@@ -110,7 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             x.row(1).columns(harmonic, harmonic),
         ]);
         let efd2 = efd::Efd2::try_from_coeffs_unnorm(coeffs).unwrap();
-        dbg!(efd_fitting_time.elapsed());
+        println!("EFD fitting time spent = {:?}", efd_fitting_time.elapsed());
         efd2.generate_half(pt)
     };
     println!("efd-fit-err = {}", efd::curve_diff(&path, &p_efd_fit));
@@ -135,7 +150,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             (&z * ey.transpose())[0]
         });
         let x = omega.lu().solve(&y).unwrap();
-        dbg!(fd_fitting_time.elapsed());
+        println!("FD fitting time spent = {:?}", fd_fitting_time.elapsed());
         let theta = na::RowDVector::from_fn(pt, |_, i| {
             na::Complex::from(i as f64 / (pt - 1) as f64 * PI)
         });
