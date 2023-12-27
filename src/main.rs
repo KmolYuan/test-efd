@@ -57,24 +57,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ../four-bar-rs/syn-examples/bow.open.ron
     // ../four-bar-rs/syn-examples/slice.open.csv
     // ../four-bar-rs/syn-examples/waterdrop.open.ron
-    let path = {
+    let (path, is_open) = {
         let Some(path) = std::env::args().nth(1) else {
             panic!("Please input path");
         };
-        match std::path::Path::new(&path)
+        let path = std::path::Path::new(&path);
+        let mode = std::path::Path::new(path.file_stem().unwrap())
+            .extension()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let is_open = mode != "closed";
+        let ext = path
             .extension()
             .and_then(|s| s.to_str())
-        {
-            Some("csv") => csv::parse_csv(std::fs::File::open(path)?)?,
-            Some("ron") => {
-                let fb = ron::de::from_reader::<_, FourBar>(std::fs::File::open(path)?)?;
-                fb.curve(180)
-            }
+            .expect("Unsupported file type");
+        let file = std::fs::File::open(path)?;
+        let path = match ext {
+            "csv" => csv::from_reader(file)?,
+            "ron" => ron::de::from_reader::<_, FourBar>(file)?.curve(180),
             _ => panic!("Unsupported file type"),
-        }
+        };
+        (path, is_open)
     };
-    let is_open = false;
-    let pt = 90;
+    let pt = if is_open { path.len() * 2 } else { path.len() };
     let efd_time = std::time::Instant::now();
     let efd = efd::Efd2::from_curve(&path, is_open);
     let harmonic = efd.harmonic();
@@ -85,7 +91,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         efd.generate(pt)
     };
-    println!("efd-err = {}", efd::curve_diff(&path, &p_efd));
 
     let fd_time = std::time::Instant::now();
     let p_fd = if is_open {
@@ -99,10 +104,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fft_recon(&path, pt)
     };
     println!("FD time spent = {:?}", fd_time.elapsed());
-    println!("fd-err = {}", efd::curve_diff(&path, &p_fd));
 
     let harmonic = 7;
-    let p_efd_fit = {
+    let _p_efd_fit = {
         let efd_fitting_time = std::time::Instant::now();
         let theta =
             na::RowDVector::from_fn(path.len(), |_, i| i as f64 / (path.len() - 1) as f64 * PI);
@@ -128,10 +132,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("EFD fitting time spent = {:?}", efd_fitting_time.elapsed());
         efd2.generate_half(pt)
     };
-    println!("efd-fit-err = {}", efd::curve_diff(&path, &p_efd_fit));
 
     let harmonic = 1;
-    let p_fd_fit = {
+    let _p_fd_fit = {
         let p = harmonic as isize;
         let harmonic = p as usize * 2 + 1;
         let fd_fitting_time = std::time::Instant::now();
@@ -164,12 +167,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|c| [c[0].re, c[0].im])
             .collect::<Vec<_>>()
     };
-    println!("fd-fit-err = {}", efd::curve_diff(&path, &p_fd_fit));
 
     // Plot
     let b = SVGBackend::new("test.svg", (1600, 800));
     let (root_l, root_r) = b.into_drawing_area().split_horizontally(800);
-    let fig = Figure::new()
+    let fig = Figure::new(None)
         .grid(false)
         .font(45.)
         .legend(LegendPos::LR)
