@@ -1,9 +1,9 @@
-use four_bar::{efd::na, plot2d::*, *};
+use four_bar::{efd::na, plot::*, *};
 use std::f64::consts::PI;
 
 fn fft_recon<C>(path: C, pt: usize) -> Vec<[f64; 2]>
 where
-    C: efd::Curve<[f64; 2]>,
+    C: efd::Curve<2>,
 {
     use rustfft::{num_complex::Complex, num_traits::Zero as _};
     let mut data = path
@@ -51,12 +51,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Path examples:
     // ./5bar.csv
     // ./curvature.csv
-    // ../four-bar-rs/syn-examples/crunode.closed.ron
-    // ../four-bar-rs/syn-examples/cusp.closed.ron
-    // ../four-bar-rs/syn-examples/heart.closed.ron
-    // ../four-bar-rs/syn-examples/bow.open.ron
-    // ../four-bar-rs/syn-examples/slice.open.csv
-    // ../four-bar-rs/syn-examples/waterdrop.open.ron
+    // ../four-bar-rs/test-fb/crunode.closed.ron
+    // ../four-bar-rs/test-fb/cusp.closed.ron
+    // ../four-bar-rs/test-fb/heart.closed.ron
+    // ../four-bar-rs/test-fb/bow.open.ron
+    // ../four-bar-rs/test-fb/slice.open.csv
+    // ../four-bar-rs/test-fb/waterdrop.open.ron
     let (path, is_open) = {
         let Some(path) = std::env::args().nth(1) else {
             panic!("Please input path");
@@ -80,17 +80,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         (path, is_open)
     };
-    let pt = if is_open { path.len() * 2 } else { path.len() };
+    let pt = if is_open {
+        path.len() * 2
+    } else {
+        path.len() * 4
+    };
     let efd_time = std::time::Instant::now();
     let efd = efd::Efd2::from_curve(&path, is_open);
     let harmonic = efd.harmonic();
     println!("EFD harmonic = {harmonic}");
     println!("EFD time spent = {:?}", efd_time.elapsed());
-    let p_efd = if is_open {
-        efd.generate_half(pt)
-    } else {
-        efd.generate(pt)
-    };
+    let _p_efd = efd.recon(pt);
 
     let fd_time = std::time::Instant::now();
     let p_fd = if is_open {
@@ -105,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("FD time spent = {:?}", fd_time.elapsed());
 
-    let harmonic = 7;
+    let harmonic = 5;
     let _p_efd_fit = {
         let efd_fitting_time = std::time::Instant::now();
         let theta =
@@ -122,18 +122,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let omega = &a * a2;
         let y = a * ax;
         let x = omega.lu().solve(&y).unwrap().transpose();
-        let coeffs = efd::Coeff2::from_rows(&[
-            x.row(0).columns(0, harmonic),
-            x.row(1).columns(0, harmonic),
-            x.row(0).columns(harmonic, harmonic),
-            x.row(1).columns(harmonic, harmonic),
-        ]);
-        let efd2 = efd::Efd2::try_from_coeffs_unnorm(coeffs).unwrap();
+        let coeffs = std::iter::zip(
+            &x.row(0).columns(0, harmonic),
+            std::iter::zip(
+                &x.row(1).columns(0, harmonic),
+                std::iter::zip(
+                    &x.row(0).columns(harmonic, harmonic),
+                    &x.row(1).columns(harmonic, harmonic),
+                ),
+            ),
+        )
+        .map(|(a, (b, (c, d)))| na::SMatrix::from([[*a, *b], [*c, *d]]))
+        .collect();
+        let efd2 = efd::Efd2::from_coeffs_unchecked(coeffs);
         println!("EFD fitting time spent = {:?}", efd_fitting_time.elapsed());
-        efd2.generate_half(pt)
+        efd2.recon(pt)
     };
 
-    let harmonic = 1;
+    let harmonic = 5;
     let _p_fd_fit = {
         let p = harmonic as isize;
         let harmonic = p as usize * 2 + 1;
@@ -169,18 +175,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Plot
-    let b = SVGBackend::new("test.svg", (1600, 800));
-    let (root_l, root_r) = b.into_drawing_area().split_horizontally(800);
-    let fig = Figure::new(None)
+    let b = SVGBackend::new("test-5bar.svg", (800, 800));
+    // let (root_l, root_r) = b.into_drawing_area().split_horizontally(800);
+    let fig = fb::Figure::new(None)
         .grid(false)
         .font(45.)
-        .legend(LegendPos::LR)
+        .legend(LegendPos::LL)
         .add_line("Target", path, Style::Circle, RED);
     fig.clone()
-        .add_line("EFD", p_efd, Style::Line, BLUE)
-        .plot(root_l)?;
-    fig.clone()
-        .add_line("FD", p_fd, Style::Line, BLACK)
-        .plot(root_r)?;
+        .add_line("FD", p_fd, Style::Line, BLUE)
+        .plot(b)?;
+    // fig.clone()
+    //     .add_line("S-TPCF", p_efd_fit, Style::DottedLine, BLUE)
+    //     .plot(root_r)?;
     Ok(())
 }
